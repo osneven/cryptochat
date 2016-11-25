@@ -4,7 +4,8 @@ from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey, EllipticCurvePrivateKey
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
 from cryptography.hazmat.primitives.kdf.concatkdf import ConcatKDFHMAC
-from utils.exceptions import KeyNotGeneratedError, RemoteKeyNotRecievedError, KeyAlreadyGeneratedError
+from utils.exceptions import KeyNotGeneratedError, RemoteKeyNotRecievedError, KeyAlreadyGeneratedError, KeyNotDerivedError
+import base64
 
 # A session that holds and manages the cryptography keys needed for communication between the local and remote
 class KeySession:
@@ -30,7 +31,7 @@ class KeySession:
 	# Returns the private local keys
 	def get_private_key_rsa(self): return self.__rsa_key.get_private()
 	def get_private_key_ecdh(self): return self.__ecdh_key.get_private()
-	def get_shared_key(self): return self.__shared_key.get_private()
+	def get_shared(self): return self.__shared_key.get_private()
 
 	# Returns the public local keys
 	def get_public_key_rsa(self): return self.__rsa_key.get_public()
@@ -72,11 +73,13 @@ class KeySession:
 			super().__init__()
 			self.__salt = b'\xe6\xb3\xdf\x8e\xbc\x95\x94Qi%)a"o\xde\xcb' # TODO: Load this from a config file
 			self.__otherinfo = b'Derivation of the exchanged ECDH key.'
+			self.__derived = False
 
 		def reset(self):
 			super().reset()
 
 		# Generates and derives the shared key from the private and public keys
+		# The key is derived and URL-safe base64 encoded
 		# private_key, the private elliptic curve key
 		# public_key, the public elliptic curve key
 		def generate(self, private_key, public_key):
@@ -86,7 +89,7 @@ class KeySession:
 			if not isinstance(public_key, EllipticCurvePublicKey):
 				raise TypeError("The public_key must be an instance of EllipticCurvePublicKey")
 			shared_key = private_key.exchange(ec.ECDH(), public_key)
-			self.__private_key = self.__derive_key(shared_key)
+			self.__private_key = self.__encode_key(self.__derive_key(shared_key))
 
 		# Derives and returns a key
 		def __derive_key(self, key):
@@ -96,8 +99,16 @@ class KeySession:
 			salt=self.__salt,
 			otherinfo=self.__otherinfo,
 			backend=default_backend())
+			self.__derived = True
 			return ckdf.derive(key)
 
+		# URL-safe base64 encodes the key
+		def __encode_key(self, key):
+			if not self.__derived:
+				raise KeyNotDerivedError("The shared key has not been derived")
+			return base64.urlsafe_b64encode(key)
+
+		# Returns the private shared key
 		def get_private(self):
 			if not self._generated:
 				raise KeyNotGeneratedError("The shared key has not been generated")
@@ -143,7 +154,7 @@ class KeySession:
 			super().generate()
 			self._private_key = rsa.generate_private_key(
 				public_exponent=65537,
-				key_size=2048,
+				key_size=4096,
 				backend=default_backend())
 
 		# Sets the remote public RSA key

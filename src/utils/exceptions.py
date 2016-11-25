@@ -13,3 +13,13 @@ class KeyAlreadyGeneratedError(Exception):
 class RemoteKeyNotRecievedError(Exception):
 	def __init__(self, message):
 		super().__init__(message)
+
+# Raised when trying to encode a shared key before its been derived
+class KeyNotDerivedError(Exception):
+	def __init__(self, message):
+		super().__init__(message)
+
+# Raised when trying to retrieve a cipher suite before a key session has been set
+class MissingKeySessionError(Exception):
+	def __init__(self, message):
+		super().__init__(message)
