@@ -1,9 +1,11 @@
 import os
 from session.key import KeySession
 from utils.exceptions import MissingKeySessionError
+from cryptography.exceptions import InvalidSignature
 from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
 
 # A session that handles cipher communication between the local and remote
 class CommunicationSession:
@@ -26,15 +28,46 @@ class CommunicationSession:
 		if not self.__has_key_session:
 			raise MissingKeySessionError("No key session is set")
 
-	# Returns the RSA suite
-	def get_rsa_suite(self):
+	# Encrypts the plaintext using the public remote RSA key and returns its ciphertext
+	# plaintext, the message to encrypt
+	def encrypt(self, plaintext):
 		self.__ensure_has_key_session()
-		return self.__rsa_suite
+		return self.__rsa_suite.encrypt(plaintext)
 
-	# Returns the AES suite
-	def get_aes_suite(self):
+	# Decrypts the ciphertext using the private RSA key and returns its plaintext
+	# ciphertext, the message to decrypt
+	def decrypt(self, ciphertext):
 		self.__ensure_has_key_session()
-		return self.__aes_suite
+		return self.__rsa_suite.decrypt(ciphertext)
+
+	# Encrypts the plaintext using the shared key and returns its ciphertext
+	# plaintext, the message to encrypt
+	def encrypt_shared(self, plaintext):
+		self.__ensure_has_key_session()
+		return self.__aes_suite.encrypt(plaintext)
+
+	# Decrypts the ciphertext using the shared key and returns its plaintext
+	# ciphertext, the message to decrypt
+	def decrypt_shared(self, ciphertext):
+		self.__ensure_has_key_session()
+		return self.__aes_suite.decrypt(ciphertext)
+
+	# Signs the message with the private RSA key
+	# message, the message to sign
+	def sign(self, message):
+		self.__ensure_has_key_session()
+		return self.__rsa_suite.sign(message)
+
+	# Verifies that the message matches the signature with the public remote RSA key
+	# message, the message to verify equals the signature
+	# signature, the signature to match with
+	def verify(self, signature, message):
+		self.__ensure_has_key_session()
+		return self.__rsa_suite.verify(signature, message)
+
+	# Returns the key session
+	def get_key_session(self):
+		return self.__key_session
 
 	# Super for all the needed suits
 	class __Suite:
@@ -106,6 +139,34 @@ class CommunicationSession:
 				mgf=padding.MGF1(algorithm=hashes.SHA1()),
 				algorithm=hashes.SHA1(),
 				label=None
+			)
+
+		# Returns the message signed with the private RSA key
+		# message, the message to sign
+		def sign(self, message):
+			return self._key_session.get_private_key_rsa().sign(
+				message,
+				self.__get_signing_padding(),
+				hashes.SHA256()
+			)
+
+		# Return true if the signature is signed with the public remote RSA key
+		# message, the message to verify the signature with
+		def verify(self, signature, message):
+			try: self._key_session.get_remote_public_key_rsa().verify(
+					signature,
+					message,
+					self.__get_signing_padding(),
+					hashes.SHA256()
+				)
+			except InvalidSignature: return False
+			return True
+
+		# Return the padding type used for signing
+		def __get_signing_padding(self):
+			return padding.PSS(
+				mgf=padding.MGF1(hashes.SHA256()),
+				salt_length=padding.PSS.MAX_LENGTH
 			)
 
 	# Handles AES symmetric encryption and decryption

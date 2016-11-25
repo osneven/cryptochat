@@ -1,5 +1,5 @@
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey, EllipticCurvePrivateKey
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
@@ -46,6 +46,44 @@ class KeySession:
 	# Returns the public remote keys
 	def get_remote_public_key_ecdh(self): return self.__ecdh_key.get_public_remote()
 	def get_remote_public_key_rsa(self): return self.__rsa_key.get_public_remote()
+
+	# Returns the SHA256 fingerprint of any key
+	@classmethod
+	def fingerprint(self, key):
+
+		# Translate the key to bytes
+		if not isinstance(key, bytes):
+			if isinstance(key, EllipticCurvePrivateKey):
+				key = key.private_bytes(
+					encoding=serialization.Encoding.DER,
+					format=serialization.PrivateFormat.PKCS8,
+					encryption_algorithm=serialization.NoEncryption()
+				)
+			elif isinstance(key, EllipticCurvePublicKey):
+				key = key.public_bytes(
+					encoding=serialization.Encoding.DER,
+					format=serialization.PublicFormat.SubjectPublicKeyInfo
+				)
+			elif isinstance(key, RSAPrivateKey):
+				key = key.private_bytes(
+					encoding=serialization.Encoding.DER,
+					format=serialization.PrivateFormat.PKCS8,
+					encryption_algorithm=serialization.NoEncryption()
+				)
+			elif isinstance(key, RSAPublicKey):
+				key = key.public_bytes(
+					encoding=serialization.Encoding.DER,
+					format=serialization.PublicFormat.SubjectPublicKeyInfo
+				)
+		if not isinstance(key, bytes):
+			raise TypeError("The key type is not supported")
+
+		# Hash the key bytes
+		digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
+		digest.update(key)
+		fingerprint = digest.finalize()
+
+		return fingerprint
 
 	# Super class for all the needed keys in the session
 	class __KeyHold:

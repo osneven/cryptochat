@@ -23,3 +23,8 @@ class KeyNotDerivedError(Exception):
 class MissingKeySessionError(Exception):
 	def __init__(self, message):
 		super().__init__(message)
+
+# Raised when trying to decode/encode packet data before a communication session has been set
+class MissingCommunicationSessionError(Exception):
+	def __init__(self, message):
+		super().__init__(message)
