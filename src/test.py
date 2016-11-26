@@ -24,13 +24,17 @@ remote_comm.set_key_session(remote_key)
 #print("ECDH private:", local_key.fingerprint(local_key.get_private_key_ecdh()))
 #print("ECDH public:", local_key.fingerprint(local_key.get_public_key_ecdh()))
 
-remote_public_fingerprint = KeySession.fingerprint(remote_key.get_public_key_rsa())
-remote_fingerprint_signature = remote_comm.sign(remote_public_fingerprint)
-
-print("Fingerprint match: (" + str(len(remote_fingerprint_signature)) + ")", local_comm.verify(
-	remote_fingerprint_signature,
-	KeySession.fingerprint(local_key.get_remote_public_key_rsa())
-))
+# Clients
+key_bytes = remote_key.get_public_key_ecdh_bytes()
+key_fingerprint = KeySession.fingerprint(key_bytes)
+key_signature = remote_comm.sign(key_fingerprint)
+print("SIG LENGTH:",len(key_signature))
+# Server
+remote_bytes = local_key.get_remote_public_key_ecdh_bytes()
+remote_fingerprint = KeySession.fingerprint(remote_bytes)
+print("FF LENGTH:",len(remote_fingerprint))
+remote_match = local_comm.verify(key_signature, remote_fingerprint)
+print("Fingerprint client->server success:", remote_match)
 
 
 

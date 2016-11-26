@@ -28,3 +28,8 @@ class MissingKeySessionError(Exception):
 class MissingCommunicationSessionError(Exception):
 	def __init__(self, message):
 		super().__init__(message)
+
+# Raised when trying to encode a new message after a protocol has finished
+class ProtocolHasFinishedError(Exception):
+	def __init__(self, message):
+		super().__init__(message)

@@ -36,53 +36,34 @@ class KeySession:
 	# Returns the public local keys
 	def get_public_key_rsa(self): return self.__rsa_key.get_public()
 	def get_public_key_ecdh(self): return self.__ecdh_key.get_public()
+	def get_public_key_rsa_bytes(self): return self.__rsa_key.get_public_bytes()
+	def get_public_key_ecdh_bytes(self): return self.__ecdh_key.get_public_bytes()
 
 	# Sets the public remote keys
 	def set_remote_public_key_ecdh(self, key): # This also generates the shared private key
 		self.__ecdh_key.set_public_remote(key)
 		self.__shared_key.generate(self.__ecdh_key.get_private(), self.__ecdh_key.get_public_remote())
 	def set_remote_public_key_rsa(self, key): self.__rsa_key.set_public_remote(key)
+	def set_remote_public_key_ecdh_bytes(self, key_bytes):
+		self.__ecdh_key.set_public_remote_bytes(key_bytes)
+		self.__shared_key.generate(self.__ecdh_key.get_private(), self.__ecdh_key.get_public_remote())
+	def set_remote_public_key_rsa_bytes(self, key_bytes): self.__rsa_key.set_public_remote_bytes(key_bytes)
 
 	# Returns the public remote keys
 	def get_remote_public_key_ecdh(self): return self.__ecdh_key.get_public_remote()
 	def get_remote_public_key_rsa(self): return self.__rsa_key.get_public_remote()
+	def get_remote_public_key_ecdh_bytes(self): return self.__ecdh_key.get_public_remote_bytes()
+	def get_remote_public_key_rsa_bytes(self): return self.__rsa_key.get_public_remote_bytes()
 
-	# Returns the SHA256 fingerprint of any key
+	# Returns the SHA256 fingerprint of any key in bytes
+	# key, the bytes to hash
 	@classmethod
 	def fingerprint(self, key):
-
-		# Translate the key to bytes
-		if not isinstance(key, bytes):
-			if isinstance(key, EllipticCurvePrivateKey):
-				key = key.private_bytes(
-					encoding=serialization.Encoding.DER,
-					format=serialization.PrivateFormat.PKCS8,
-					encryption_algorithm=serialization.NoEncryption()
-				)
-			elif isinstance(key, EllipticCurvePublicKey):
-				key = key.public_bytes(
-					encoding=serialization.Encoding.DER,
-					format=serialization.PublicFormat.SubjectPublicKeyInfo
-				)
-			elif isinstance(key, RSAPrivateKey):
-				key = key.private_bytes(
-					encoding=serialization.Encoding.DER,
-					format=serialization.PrivateFormat.PKCS8,
-					encryption_algorithm=serialization.NoEncryption()
-				)
-			elif isinstance(key, RSAPublicKey):
-				key = key.public_bytes(
-					encoding=serialization.Encoding.DER,
-					format=serialization.PublicFormat.SubjectPublicKeyInfo
-				)
-		if not isinstance(key, bytes):
-			raise TypeError("The key type is not supported")
 
 		# Hash the key bytes
 		digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
 		digest.update(key)
 		fingerprint = digest.finalize()
-
 		return fingerprint
 
 	# Super class for all the needed keys in the session
@@ -181,6 +162,29 @@ class KeySession:
 			if not self._recieved_remote:
 				raise RemoteKeyNotRecievedError("The remote public key has not been recieved")
 			return self._remote_public_key
+
+		# Decodes and sets the public remote assymmetric key
+		# key_bytes, the key to decode
+		def set_public_remote_bytes(self, key_bytes):
+			if not isinstance(key_bytes, bytes):
+				raise TypeError("The encoded_key must be an instance of bytes")
+			self._recieved_remote = True
+			self._remote_public_key = serialization.load_der_public_key(key_bytes, default_backend())
+
+		# Encodes and returns the public remote assymmetric key
+		def get_public_remote_bytes(self):
+			return self.get_public_remote().public_bytes(
+				encoding=serialization.Encoding.DER,
+				format=serialization.PublicFormat.SubjectPublicKeyInfo
+			)
+
+		# Encodes and returns the public assymmetric key
+		def get_public_bytes(self):
+			return self.get_public().public_bytes(
+				encoding=serialization.Encoding.DER,
+				format=serialization.PublicFormat.SubjectPublicKeyInfo
+			)
+
 
 	# Generates and holds the local RSA key pair and remote public key
 	class __RSAKeyHold(__AssymmetricKeyHold):

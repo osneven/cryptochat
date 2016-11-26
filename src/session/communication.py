@@ -1,7 +1,6 @@
 import os
 from session.key import KeySession
 from utils.exceptions import MissingKeySessionError
-from cryptography.exceptions import InvalidSignature
 from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -150,17 +149,15 @@ class CommunicationSession:
 				hashes.SHA256()
 			)
 
-		# Return true if the signature is signed with the public remote RSA key
+		# Raises an InvalidSignature error if the signature is not signed with the priavate remote RSA key
 		# message, the message to verify the signature with
 		def verify(self, signature, message):
-			try: self._key_session.get_remote_public_key_rsa().verify(
-					signature,
-					message,
-					self.__get_signing_padding(),
-					hashes.SHA256()
-				)
-			except InvalidSignature: return False
-			return True
+			self._key_session.get_remote_public_key_rsa().verify(
+				signature,
+				message,
+				self.__get_signing_padding(),
+				hashes.SHA256()
+			)
 
 		# Return the padding type used for signing
 		def __get_signing_padding(self):
@@ -176,17 +173,24 @@ class CommunicationSession:
 		# key_session, the key session to encrypt and decrypt with
 		def __init__(self, key_session):
 			super().__init__(key_session)
-			self.__fernet = Fernet(key_session.get_shared())
+			self.__fernet = None
 
 		# Encrypts the plaintext using the shared "AES" key, and returns its ciphertext and the iv
 		# Return foramt: IV(128 bits) || Ciphertext(multiple of 128 bits)
 		# plaintext, the byte message to encrypt
 		def encrypt(self, plaintext):
+			self.__ensure_fernet()
 			super().encrypt(plaintext)
 			return self.__fernet.encrypt(plaintext)
 
 		# Decrypts the ciphertext using the shared "AES" key, and returns its plaintext
 		# ciphertext, the byte message to decrypt
 		def decrypt(self, ciphertext):
+			self.__ensure_fernet()
 			super().decrypt(ciphertext)
 			return self.__fernet.decrypt(ciphertext)
+
+		# Initializes the fernet if it is none
+		def __ensure_fernet(self):
+			if self.__fernet is None:
+				self.__fernet = Fernet(self._key_session.get_shared())
